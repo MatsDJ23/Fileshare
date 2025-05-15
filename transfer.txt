@@ -1,0 +1,62 @@
+function speelBeurt($kleur, &$pionnen, &$stappen, $startposities, $kleuren, &$wachtrij, &$eindrij) {
+    clearScreen();
+
+    echo "Beurt voor speler met kleur: $kleur" . PHP_EOL;
+    toonspelbord($stappen, $eindrij);
+    toonspelbord_breed($pionnen, $stappen, $kleuren, $wachtrij, $startposities, $eindrij);
+
+    // Alleen pionnen met stappen -1 t/m 39 kunnen nog iets doen
+    $beschikbaar = array_keys(array_filter($stappen[$kleur], fn($s) => $s < 40));
+    if (empty($beschikbaar)) {
+        echo "$kleur heeft geen pionnen meer in het spel.\n";
+        sleep(1);
+        return;
+    }
+
+    $dobbelsteen = rand(1, 6);
+    echo "$kleur gooit een $dobbelsteen!\n";
+
+    do {
+        $keuze = readline("Kies een pion (0-3): ");
+    } while (!in_array($keuze, $beschikbaar));
+
+    $huidigeStap = $stappen[$kleur][$keuze];
+
+    // Als pion nog in wachtrij staat
+    if ($huidigeStap === -1) {
+        if ($dobbelsteen === 6) {
+            echo "Pion $keuze komt het veld op!\n";
+            $stappen[$kleur][$keuze] = 0; // Zet stappen op 0
+            $pionnen[$kleur][$keuze] = $startposities[$kleur]; // Zet positie op startpositie
+            $wachtrij[$kleur][$keuze] = "_"; // Verwijder uit wachtrij
+        } else {
+            echo "Je hebt geen 6 gegooid, deze pion mag nog niet starten.\n";
+        }
+        sleep(1);
+        return;
+    }
+
+    // Beweging als pion al op het bord staat
+    if ($stappen[$kleur][$keuze] + $dobbelsteen > 40) {
+        echo "Deze pion kan niet bewegen, te ver!\n";
+        sleep(1);
+        return;
+    }
+
+    $stappen[$kleur][$keuze] += $dobbelsteen;
+    $pionnen[$kleur][$keuze] += $dobbelsteen;
+
+    echo "$kleur pion $keuze heeft nu " . $stappen[$kleur][$keuze] . " stappen.\n";
+
+    if ($stappen[$kleur][$keuze] === 40) {
+        echo "$kleur pion $keuze is binnen! 🎉\n";
+        foreach ($eindrij[$kleur] as $i => $plek) {
+            if ($plek === "_") {
+                $eindrij[$kleur][$i] = $kleuren[$kleur];
+                break;
+            }
+        }
+    }
+
+    sleep(1);
+}
