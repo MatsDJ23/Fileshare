@@ -1,62 +1,159 @@
-function speelBeurt($kleur, &$pionnen, &$stappen, $startposities, $kleuren, &$wachtrij, &$eindrij) {
-    clearScreen();
-
-    echo "Beurt voor speler met kleur: $kleur" . PHP_EOL;
-    toonspelbord($stappen, $eindrij);
-    toonspelbord_breed($pionnen, $stappen, $kleuren, $wachtrij, $startposities, $eindrij);
-
-    // Alleen pionnen met stappen -1 t/m 39 kunnen nog iets doen
-    $beschikbaar = array_keys(array_filter($stappen[$kleur], fn($s) => $s < 40));
-    if (empty($beschikbaar)) {
-        echo "$kleur heeft geen pionnen meer in het spel.\n";
-        sleep(1);
-        return;
-    }
-
-    $dobbelsteen = rand(1, 6);
-    echo "$kleur gooit een $dobbelsteen!\n";
-
-    do {
-        $keuze = readline("Kies een pion (0-3): ");
-    } while (!in_array($keuze, $beschikbaar));
-
-    $huidigeStap = $stappen[$kleur][$keuze];
-
-    // Als pion nog in wachtrij staat
-    if ($huidigeStap === -1) {
-        if ($dobbelsteen === 6) {
-            echo "Pion $keuze komt het veld op!\n";
-            $stappen[$kleur][$keuze] = 0; // Zet stappen op 0
-            $pionnen[$kleur][$keuze] = $startposities[$kleur]; // Zet positie op startpositie
-            $wachtrij[$kleur][$keuze] = "_"; // Verwijder uit wachtrij
-        } else {
-            echo "Je hebt geen 6 gegooid, deze pion mag nog niet starten.\n";
-        }
-        sleep(1);
-        return;
-    }
-
-    // Beweging als pion al op het bord staat
-    if ($stappen[$kleur][$keuze] + $dobbelsteen > 40) {
-        echo "Deze pion kan niet bewegen, te ver!\n";
-        sleep(1);
-        return;
-    }
-
-    $stappen[$kleur][$keuze] += $dobbelsteen;
-    $pionnen[$kleur][$keuze] += $dobbelsteen;
-
-    echo "$kleur pion $keuze heeft nu " . $stappen[$kleur][$keuze] . " stappen.\n";
-
-    if ($stappen[$kleur][$keuze] === 40) {
-        echo "$kleur pion $keuze is binnen! 🎉\n";
-        foreach ($eindrij[$kleur] as $i => $plek) {
-            if ($plek === "_") {
-                $eindrij[$kleur][$i] = $kleuren[$kleur];
-                break;
-            }
-        }
-    }
-
-    sleep(1);
+<?php
+// Startposities per kleur
+$startposities = [
+    "Blauw" => 0,
+    "Rood" => 10,                                                                                                                       
+    "Groen" => 20,                                                                                                                      
+    "Geel" => 30                                                                                                                        
+];                                                                                                                                      
+                                                                                                                                        
+// ANSI-kleurcodes voor CLI-weergave                                                                                                    
+$kleuren = [                                                                                                                            
+    "Blauw" => "\033[34mB\033[0m",  // Blauw                                                                                            
+    "Rood" => "\033[31mR\033[0m",   // Rood                                                                                             
+    "Groen" => "\033[32mG\033[0m",  // Groen                                                                                            
+    "Geel" => "\033[33mY\033[0m"    // Geel                                                                                             
+];                                                                                                                                      
+                                                                                                                                        
+// Initiele pionstatussen                                                                                                               
+$pionnen = $stappen = $wachtrij = $eindrij = [];                                                                                        
+                                                                                                                                        
+foreach ($startposities as $kleur => $start) {                                                                                          
+    $pionnen[$kleur] = array_fill(0, 4, $start);                                                                                        
+    $stappen[$kleur] = array_fill(0, 4, -1); //0 aangepast naar -1                                                                      
+    $wachtrij[$kleur] = array_fill(0, 4, $kleuren[$kleur]);                                                                             
+    $eindrij[$kleur] = array_fill(0, 4, "_");                                                                                           
+}                                                                                                                                       
+                                                                                                                                        
+// Cross-platform clear screen                                                                                                          
+function clearScreen() {                                                                                                                
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {                                                                                   
+        system('cls');                                                                                                                  
+    } else {                                                                                                                            
+        system('clear');                                                                                                                
+    }                                                                                                                                   
+}                                                                                                                                       
+                                                                                                                                        
+// Toon speelbord status                                                                                                                
+function toonspelbord($stappen, $eindrij) {                                                                                             
+    echo "\n=== Spelstatus ===\n";                                                                                                      
+    foreach ($stappen as $kleur => $pions) {                                                                                            
+        echo "$kleur: ";                                                                                                                
+        foreach ($pions as $stap) {                                                                                                     
+            echo "$stap ";                                                                                                              
+        }                                                                                                                               
+        echo PHP_EOL;                                                                                                                   
+    }                                                                                                                                   
+    echo '-1 betekend pion in wachtrij';                                                                                                
+}                                                                                                                                       
+                                                                                                                                        
+// Toon breed spelbord                                                                                                                  
+function toonspelbord_breed($pionnen, $stappen, $kleuren, $wachtrij, $startposities, $eindrij) {                                        
+    $breedte = 40;                                                                                                                      
+    $bord = array_fill(0, $breedte, '.');                                                                                               
+                                                                                                                                        
+    // Markeer startposities                                                                                                            
+    foreach ($startposities as $kleur => $start) {                                                                                      
+        $bord[$start] = '-';                                                                                                            
+    }                                                                                                                                   
+                                                                                                                                        
+    // Plaats pionnen op het bord                                                                                                       
+    foreach ($pionnen as $kleur => $pions) {                                                                                            
+        foreach ($pions as $i => $positie) {                                                                                            
+            if ($stappen[$kleur][$i] >= 1 && $stappen[$kleur][$i] < 40) {                                                               
+                $bord[$positie % $breedte] = $kleuren[$kleur];                                                                          
+            }                                                                                                                           
+        }                                                                                                                               
+    }                                                                                                                                   
+                                                                                                                                        
+    // Print hoofdbord                                                                                                                  
+    echo "\n" . str_repeat('=', $breedte) . PHP_EOL;                                                                                    
+    echo implode('', $bord) . PHP_EOL;                                                                                                  
+                                                                                                                                        
+    // Print wachtrijen + eindrij per kleur onder elkaar                                                                                
+    $kleurenVolgorde = ['Blauw', 'Rood', 'Groen', 'Geel'];
+    for ($i = 0; $i < 4; $i++) {                                                                                                        
+        foreach ($kleurenVolgorde as $kleur) {                                                                                          
+            $letter = strtoupper($kleur[0]);                                                                                            
+            $eindvak = $eindrij[$kleur][$i] ?? "_";                                                                                     
+            echo "$letter " . ($eindvak === "_" ? "_" : $eindvak) . "       ";                                                          
+        }                                                                                                                               
+        echo PHP_EOL;                                                                                                                   
+    }                                                                                                                                   
+                                                                                                                                        
+    echo str_repeat('=', $breedte) . PHP_EOL;                                                                                           
+}                                                                                                                                       
+                                                                                                                                        
+// Beurt spelen                                                                                                                         
+function speelBeurt($kleur, &$pionnen, &$stappen, $startposities, $kleuren, &$wachtrij, &$eindrij) {                                    
+    clearScreen();                                                                                                                      
+                                                                                                                                        
+    echo "Beurt voor speler met kleur: $kleur" . PHP_EOL;                                                                               
+    toonspelbord($stappen, $eindrij);                                                                                                   
+    toonspelbord_breed($pionnen, $stappen, $kleuren, $wachtrij, $startposities, $eindrij);                                              
+                                                                                                                                        
+    $beschikbaar = array_keys(array_filter($stappen[$kleur], fn($s) => $s < 40));                                                       
+    if (empty($beschikbaar)) {                                                                                                          
+        echo "$kleur heeft geen pionnen meer in het spel.\n";                                                                           
+        sleep(1);                                                                                                                       
+        return;                                                                                                                         
+    }                                                                                                                                   
+                                                                                                                                        
+    $dobbelsteen = rand(1, 6);                                                                                                          
+    echo "$kleur gooit een $dobbelsteen!\n";                                                                                            
+                                                                                                                                        
+    do {                                                                                                                                
+        $keuze = readline("Kies een pion (0-3): ");                                                                                     
+    } while (!in_array($keuze, $beschikbaar));                                                                                          
+                                                                                                                                        
+    // Check of beweging geldig is                                                                                                      
+    if ($stappen[$kleur][$keuze] + $dobbelsteen > 40) {                                                                                 
+        echo "Deze pion kan niet bewegen, te ver!\n";                                                                                   
+        sleep(1);                                                                                                                       
+        return;                                                                                                                         
+    }                                                                                                                                   
+                                                                                                                                        
+    $stappen[$kleur][$keuze] += $dobbelsteen;                                                                                           
+    $pionnen[$kleur][$keuze] += $dobbelsteen;                                                                                           
+                                                                                                                                        
+    echo "$kleur pion $keuze heeft nu " . $stappen[$kleur][$keuze] . " stappen.\n";                                                     
+                                                                                                                                        
+    if ($stappen[$kleur][$keuze] > 1) {                                                                                                 
+        $wachtrij[$kleur][$keuze] = "_";                                                                                                
+    }                                                                                                                                   
+                                                                                                                                        
+    if ($stappen[$kleur][$keuze] === 40) {                                                                                              
+        echo "$kleur pion $keuze is binnen! �\n";                                                                                       
+        foreach ($eindrij[$kleur] as $i => $plek) {                                                                                     
+            if ($plek === "_") {                                                                                                        
+                $eindrij[$kleur][$i] = $kleuren[$kleur];                                                                                
+                break;                                                                                                                  
+            }                                                                                                                           
+        }                                                                                                                               
+    }                                                                                                                                   
+                                                                                                                                        
+    sleep(1);                                                                                                                           
+}                                                                                                                                       
+                                                                                                                                        
+// Winconditie                                                                                                                          
+function spelEinde($stappen) {                                                                                                          
+    foreach ($stappen as $kleur => $pions) {                                                                                            
+        if (count(array_filter($pions, fn($s) => $s >= 40)) === 4) {
+            echo "\n�� $kleur heeft gewonnen! ��\n";                                                                                    
+            return true;                                                                                                                
+        }                                                                                                                               
+    }                                                                                                                                   
+    return false;                                                                                                                       
+}                                                                                                                                       
+                                                                                                                                        
+// Start spel                                                                                                                           
+toonspelbord($stappen, $eindrij);                                                                                                       
+toonspelbord_breed($pionnen, $stappen, $kleuren, $wachtrij, $startposities, $eindrij);                                                  
+                                                                                                                                        
+// Spelloop                                                                                                                             
+while (!spelEinde($stappen)) {                                                                                                          
+    foreach (array_keys($startposities) as $kleur) {                                                                                    
+        speelBeurt($kleur, $pionnen, $stappen, $startposities, $kleuren, $wachtrij, $eindrij);                                          
+    } 
 }
+?>
